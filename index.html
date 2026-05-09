@@ -366,6 +366,7 @@ function newGame() {
     player: null, enemies: [], bullets: [], effects: [],
     spawnQ: [], spawnTimer: 0, maxEnemy: 4,
     state: 'menu', keys: {}, baseAlive: true,
+    stageIntroTimer: 0,
     px: 12, py: 24, // player spawn grid pos
     bx: 13, by: 25, // base grid pos (2x2)
   };
@@ -382,7 +383,8 @@ function loadMap(idx) {
 }
 
 function startGame() {
-  G.state = 'playing';
+  G.state = 'stageIntro';
+  G.stageIntroTimer = 1000;
   ol.classList.remove('show');
   G.wave = 0;
   G.score = 0;
@@ -482,6 +484,11 @@ function fireBullet(tank) {
 
 // ========== UPDATE ==========
 function update() {
+  if (G.state === 'stageIntro') {
+    G.stageIntroTimer -= 16;
+    if (G.stageIntroTimer <= 0) G.state = 'playing';
+    return;
+  }
   if (G.state !== 'playing') return;
   let dt = 1;
 
@@ -616,6 +623,8 @@ function update() {
     G.mapIdx = (G.mapIdx + 1) % MAPS.length;
     loadMap(G.mapIdx);
     spawnWave();
+    G.state = 'stageIntro';
+    G.stageIntroTimer = 1000;
   }
 
   updateUI();
@@ -742,6 +751,20 @@ function render() {
   }
   drawTank(G.player);
   for (let e of G.enemies) drawTank(e);
+
+  // Stage intro overlay
+  if (G.state === 'stageIntro') {
+    cx.fillStyle = 'rgba(0,0,0,0.6)';
+    cx.fillRect(0, 0, W, H);
+    cx.fillStyle = '#f0c040';
+    cx.font = 'bold 42px "Courier New", monospace';
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    cx.fillText('STAGE ' + G.wave, W/2, H/2 - 20);
+    cx.font = '20px "Courier New", monospace';
+    cx.fillStyle = '#fff';
+    cx.fillText('第 ' + G.wave + ' 关', W/2, H/2 + 30);
+  }
 }
 
 // ========== UI ==========
@@ -771,8 +794,13 @@ document.addEventListener('keydown', e => {
     }
   }
   if (e.key === 'p' || e.key === 'P') {
-    if (G.state === 'playing') G.state = 'paused';
-    else if (G.state === 'paused') G.state = 'playing';
+    if (G.state === 'playing') {
+      G.state = 'paused';
+      if (Audio.ctx) Audio.ctx.suspend();
+    } else if (G.state === 'paused') {
+      G.state = 'playing';
+      if (Audio.ctx) Audio.ctx.resume();
+    }
   }
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','p','P','w','W','s','S','a','A','d','D'].includes(e.key)) {
     e.preventDefault();
