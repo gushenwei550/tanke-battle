@@ -777,7 +777,7 @@ function updateUI() {
 
 // ========== MAIN LOOP ==========
 function loop() {
-  if (G.state === 'playing') update();
+  if (G.state === 'playing' || G.state === 'stageIntro') update();
   render();
   requestAnimationFrame(loop);
 }
