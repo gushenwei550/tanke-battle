@@ -214,6 +214,121 @@ const MAPS = [
   ],
 ];
 
+// ========== AUDIO ==========
+const Audio = {
+  ctx: null, bgGain: null, bgPlaying: false, bgTimer: null,
+
+  ensure() {
+    if (!this.ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new C();
+      this.bgGain = this.ctx.createGain();
+      this.bgGain.gain.value = 0.08;
+      this.bgGain.connect(this.ctx.destination);
+    }
+  },
+
+  shoot() {
+    this.ensure();
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = 'square';
+    o.connect(g); g.connect(this.ctx.destination);
+    const t = this.ctx.currentTime;
+    o.frequency.setValueAtTime(1200, t);
+    o.frequency.exponentialRampToValueAtTime(300, t + 0.08);
+    g.gain.setValueAtTime(0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    o.start(t); o.stop(t + 0.08);
+  },
+
+  hit() {
+    this.ensure();
+    const n = this.ctx.sampleRate * 0.25;
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
+    const s = this.ctx.createBufferSource();
+    s.buffer = buf;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.2, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+    s.connect(g); g.connect(this.ctx.destination);
+    s.start();
+  },
+
+  explode() {
+    this.ensure();
+    const n = this.ctx.sampleRate * 0.4;
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = this.ctx.createBufferSource();
+    s.buffer = buf;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.35, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+    s.connect(g); g.connect(this.ctx.destination);
+    s.start();
+  },
+
+  gameover() {
+    this.ensure();
+    const t = this.ctx.currentTime;
+    [523, 440, 349, 262].forEach((f, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'square';
+      o.connect(g); g.connect(this.ctx.destination);
+      const tt = t + i * 0.25;
+      o.frequency.setValueAtTime(f, tt);
+      g.gain.setValueAtTime(0.15, tt);
+      g.gain.exponentialRampToValueAtTime(0.001, tt + 0.22);
+      o.start(tt); o.stop(tt + 0.25);
+    });
+  },
+
+  startBG() {
+    this.ensure();
+    this.stopBG();
+    this.bgPlaying = true;
+    this._bgLoop();
+  },
+
+  stopBG() {
+    this.bgPlaying = false;
+    if (this.bgTimer) { clearTimeout(this.bgTimer); this.bgTimer = null; }
+  },
+
+  _bgLoop() {
+    if (!this.bgPlaying) return;
+    const melody = [262,294,330,349,392,349,330,294, 262,330,392,523,392,330,294,262];
+    const bass   = [131,131,131,131, 165,165,165,165, 131,131,131,131, 175,175,175,175];
+    const t = this.ctx.currentTime;
+    const noteLen = 0.18;
+    melody.forEach((f, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'square';
+      o.connect(g); g.connect(this.bgGain);
+      const tt = t + i * noteLen;
+      o.frequency.setValueAtTime(f, tt);
+      g.gain.setValueAtTime(0.06, tt);
+      g.gain.setValueAtTime(0.06, tt + noteLen * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.001, tt + noteLen);
+      o.start(tt); o.stop(tt + noteLen + 0.01);
+    });
+    bass.forEach((f, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'triangle';
+      o.connect(g); g.connect(this.bgGain);
+      const tt = t + i * noteLen;
+      o.frequency.setValueAtTime(f, tt);
+      g.gain.setValueAtTime(0.08, tt);
+      g.gain.exponentialRampToValueAtTime(0.001, tt + noteLen * 1.5);
+      o.start(tt); o.stop(tt + noteLen * 1.6);
+    });
+    this.bgTimer = setTimeout(() => this._bgLoop(), melody.length * noteLen * 1000 - 50);
+  }
+};
+
 // ========== GAME STATE ==========
 let G = null; // game object
 
@@ -279,6 +394,7 @@ function startGame() {
   G.effects = [];
   loadMap(G.mapIdx);
   spawnWave();
+  Audio.startBG();
   updateUI();
 }
 
@@ -360,6 +476,7 @@ function fireBullet(tank) {
   let bx = cx + DX[tank.dir] * (tank.size/2 + 1);
   let by = cy + DY[tank.dir] * (tank.size/2 + 1);
   G.bullets.push(new Bullet(bx, by, tank.dir, !tank.isPlayer, tank));
+  Audio.shoot();
   tank.cooldown = tank.isPlayer ? 250 : 1500;
 }
 
@@ -433,6 +550,7 @@ function update() {
       if (tile === BRICK || tile === STEEL) {
         G.grid[gr][gc] = EMPTY;
         b.alive = false;
+        Audio.hit();
         addEffect(gc*CS, gr*CS, 200, tile===STEEL?'#aaa':'#d07030');
         continue;
       }
@@ -441,6 +559,7 @@ function update() {
         b.alive = false;
         G.baseAlive = false;
         addEffect(gc*CS, gr*CS, 500, '#ff4400');
+        Audio.explode();
         gameOver();
         continue;
       }
@@ -453,6 +572,7 @@ function update() {
         if (G.player.invincible <= 0) {
           G.player.alive = false;
           addEffect(G.player.x, G.player.y, 400, '#ff8020');
+          Audio.explode();
           G.lives--;
           G.player = null;
           updateUI();
@@ -470,6 +590,7 @@ function update() {
           e.alive = false;
           G.score += 100;
           addEffect(e.x, e.y, 400, '#ff4400');
+          Audio.hit();
           updateUI();
           break;
         }
@@ -502,6 +623,8 @@ function update() {
 
 function gameOver() {
   G.state = 'gameover';
+  Audio.stopBG();
+  Audio.gameover();
   ol.innerHTML = '<h1 style="color:#f04040">GAME OVER</h1><p style="color:#aaa">得分: '+G.score+'</p><p style="color:#fff;margin-top:12px">按 Enter 重新开始</p>';
   ol.classList.add('show');
 }
