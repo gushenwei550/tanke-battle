@@ -367,6 +367,7 @@ function newGame() {
     spawnQ: [], spawnTimer: 0, maxEnemy: 4,
     state: 'menu', keys: {}, baseAlive: true,
     stageIntroTimer: 0,
+    spawnIdx: 0,
     px: 12, py: 24, // player spawn grid pos
     bx: 13, by: 25, // base grid pos (2x2)
   };
@@ -419,7 +420,9 @@ function spawnPlayer() {
 function spawnEnemy() {
   if (G.spawnQ.length === 0 || G.enemies.length >= G.maxEnemy) return;
   let pts = [{x:0,y:0},{x:12,y:0},{x:24,y:0}];
-  for (let p of pts) {
+  for (let i = 0; i < pts.length; i++) {
+    let idx = (G.spawnIdx + i) % pts.length;
+    let p = pts[idx];
     let sx = p.x * CS + (CS - 22) / 2;
     let sy = p.y * CS + (CS - 22) / 2;
     let ok = true;
@@ -431,6 +434,7 @@ function spawnEnemy() {
       let e = new Tank(sx, sy, D, false);
       G.enemies.push(e);
       G.spawnQ.pop();
+      G.spawnIdx = (G.spawnIdx + 1) % pts.length;
       addEffect(sx, sy, 200, '#40ff40');
       updateUI();
       return;
@@ -610,7 +614,7 @@ function update() {
 
   // Spawn enemies
   G.spawnTimer += 16;
-  if (G.spawnTimer >= 2500) { G.spawnTimer = 0; spawnEnemy(); }
+  if (G.spawnTimer >= 1000) { G.spawnTimer = 0; spawnEnemy(); }
 
   // Effects
   for (let i = G.effects.length - 1; i >= 0; i--) {
@@ -623,6 +627,8 @@ function update() {
     G.mapIdx = (G.mapIdx + 1) % MAPS.length;
     loadMap(G.mapIdx);
     spawnWave();
+    G.player = null;
+    G.spawnIdx = 0;
     G.state = 'stageIntro';
     G.stageIntroTimer = 1000;
   }
